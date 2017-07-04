@@ -1,0 +1,11 @@
+%h1.effective-admin-heading= @page_title
+
+.row
+  .col-sm-2
+  .col-sm-8
+    %p= @merge.target
+    = render partial: '/admin/merge/attributes', locals: { resource: @merge.target }
+  .col-sm-2
+
+.text-center
+  %p= link_to "Merge Another #{@merge}", effective_mergery.new_admin_merge_path(type: @merge.type), class: 'btn btn-primary'

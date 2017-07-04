@@ -1,0 +1,3 @@
+= tableize_hash(resource.attributes, table: 'table table-attributes')
+%hr
+= tableize_hash(Effective::Resource.new(resource).instance_attributes.except(:attributes))

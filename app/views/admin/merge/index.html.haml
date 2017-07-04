@@ -1,0 +1,10 @@
+%h1.effective-admin-heading= @page_title
+
+%p Please select one of the following to merge:
+
+- if EffectiveMergery.mergables.blank?
+  %p There is nothing available to merge.
+- else
+  %ul
+    - EffectiveMergery.mergables.each do |name|
+      %li= link_to name, effective_mergery.new_admin_merge_path(type: name)
