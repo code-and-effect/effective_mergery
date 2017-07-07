@@ -1,3 +1,3 @@
-= tableize_hash(resource.attributes, table: 'table table-attributes')
+= tableize_hash(resource.attributes, table: 'table table-merge table-attributes')
 %hr
-= tableize_hash(Effective::Resource.new(resource).instance_attributes.except(:attributes))
+= tableize_hash(Effective::Resource.new(resource).instance_attributes.except(:attributes), table: 'table table-merge', sub_table: 'table table-merge table-subtable')

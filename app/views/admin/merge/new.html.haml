@@ -25,5 +25,5 @@
         - if f.object.target.present?
           = render partial: '/admin/merge/attributes', locals: { resource: f.object.target }
 
-    .text-center
+    .form-actions
       = f.button :submit, "Merge #{@merge}", data: { disable_with: 'Merging...', confirm: "Really merge? The source record will be destroyed."}

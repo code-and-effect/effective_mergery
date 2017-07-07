@@ -3,3 +3,22 @@
     .table-attributes { opacity: 0.4; }
   }
 }
+
+.table-merge.table > thead > tr > th,
+.table-merge.table > thead > tr > td,
+.table-merge.table > tbody > tr > th,
+.table-merge.table > tbody > tr > td,
+.table-merge.table > tfoot > tr > th,
+.table-merge.table > tfoot > tr > td {
+  padding: 0 5px 5px 5px;
+}
+
+.effective-merge {
+  .encrypted_password,
+  .reset_password_token,
+  .confirmation_token,
+  .unique_session_id,
+  .invitation_token {
+    display: none;
+  }
+}
