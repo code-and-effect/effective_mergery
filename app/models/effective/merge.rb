@@ -34,7 +34,11 @@ module Effective
     end
 
     def collection
-      @collection ||= (klass.respond_to?(:sorted) ? klass.sorted : klass.all)
+      @collection ||= (klass.respond_to?(:effective_mergery_collection) ? klass.effective_mergery_collection : klass.all)
+    end
+
+    def form_collection
+      @form_collection ||= (klass.respond_to?(:effective_mergery_form_collection) ? klass.effective_mergery_form_collection : collection)
     end
 
     def klass

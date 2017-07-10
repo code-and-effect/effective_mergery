@@ -9,11 +9,11 @@
     .row
       .col-sm-6
         = f.input :source_id, as: (defined?(EffectiveFormInputs) ? :effective_select : :select),
-          collection: f.object.collection,
+          collection: f.object.form_collection,
           hint: 'This record will be destroyed'
       .col-sm-6
         = f.input :target_id, as: (defined?(EffectiveFormInputs) ? :effective_select : :select),
-          collection: f.object.collection,
+          collection: f.object.form_collection,
           hint: 'This record will be kept'
 
     .row
