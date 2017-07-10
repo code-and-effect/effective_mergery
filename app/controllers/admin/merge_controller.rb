@@ -31,6 +31,10 @@ module Admin
         @page_title = 'Successful Merge'
         flash[:success] = "Successfully merged #{@merge}"
 
+        if defined?(EffectiveLogging)
+          EffectiveLogger.success "Merged #{@merge}", user: (current_user rescue false), associated: @merge.target, source_id: @merge.source_id, target_id: @merge.target_id, mergable_type: @merge.type
+        end
+
         @merge.target = @merge.collection.find(@merge.target_id)
       else
         @page_title = 'New Merge'
