@@ -32,7 +32,16 @@ module Admin
         flash[:success] = "Successfully merged #{@merge}"
 
         if defined?(EffectiveLogging)
-          EffectiveLogger.success "Merged #{@merge}", user: (current_user rescue false), associated: @merge.target, source_id: @merge.source_id, target_id: @merge.target_id, mergable_type: @merge.type
+          EffectiveLogger.success(
+            "Merged #{@merge} - #{@merge.source.respond_to?(:to_s_verbose) ? @merge.source.to_s_verbose : @merge.source.to_s}",
+            user: (current_user rescue false),
+            associated: @merge.target,
+            source_id: @merge.source_id,
+            target_id: @merge.target_id,
+            mergable_type: @merge.type,
+            source_email: (@merge.source.email if @merge.source.respond_to?(:email)),
+            source_name: (@merge.source.full_name if @merge.source.respond_to?(:full_name))
+          )
         end
 
         @merge.target = @merge.collection.find(@merge.target_id)
