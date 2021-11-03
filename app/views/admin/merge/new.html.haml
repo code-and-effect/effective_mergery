@@ -3,7 +3,7 @@
 %p Please select a source and target. The source record's associated data, but not its attributes, will be merged into the target. The source record will then be destroyed.
 
 .effective-merge
-  = simple_form_for [:admin, @merge], (EffectiveOrders.admin_simple_form_options || {}).merge(url: effective_mergery.admin_merge_index_path) do |f|
+  = simple_form_for([:admin, @merge], url: effective_mergery.admin_merge_index_path) do |f|
     = f.input :type, as: :hidden
 
     .row
