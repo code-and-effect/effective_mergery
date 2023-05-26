@@ -1,17 +1,20 @@
 module Admin
   class MergeController < ApplicationController
-    before_action :authenticate_user! if defined?(Devise)
+    before_action(:authenticate_user!) if defined?(Devise)
+    before_action { EffectiveResources.authorize!(self, :admin, :effective_mergery) }
 
-    layout (EffectiveMergery.layout.kind_of?(Hash) ? EffectiveMergery.layout[:admin_merge] : EffectiveMergery.layout)
+    include Effective::CrudController
+
+    if (config = EffectiveMergery.layout)
+      layout(config.kind_of?(Hash) ? config[:admin] : config)
+    end
 
     def index
       @page_title = 'Merges'
-      EffectiveMergery.authorized?(self, :admin, :effective_mergery)
     end
 
     def new
       @page_title = 'New Merge'
-      EffectiveMergery.authorized?(self, :admin, :effective_mergery)
 
       begin
         @merge = Effective::Merge.new(type: params[:type])
@@ -23,8 +26,6 @@ module Admin
     end
 
     def create
-      EffectiveMergery.authorized?(self, :admin, :effective_mergery)
-
       @merge = Effective::Merge.new(merge_params)
 
       if @merge.save
@@ -55,8 +56,6 @@ module Admin
 
     # This is the AJAX request for the object's attributes
     def attributes
-      EffectiveMergery.authorized?(self, :admin, :effective_mergery)
-
       object = Effective::Merge.new(type: params[:type]).collection.find(params[:id])
 
       if object.present?
@@ -69,7 +68,7 @@ module Admin
     private
 
     def merge_params
-      params.require(:effective_merge).permit(:type, :source_id, :target_id)
+      params.require(:effective_merge).permit!
     end
 
   end

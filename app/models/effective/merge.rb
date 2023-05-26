@@ -7,7 +7,7 @@ module Effective
     validate(if: -> { source_id.present? }) { @source ||= collection.find_by_id(source_id) }
     validate(if: -> { target_id.present? }) { @target ||= collection.find_by_id(target_id) }
 
-    validates :type, presence: true, inclusion: { in: EffectiveMergery.mergables, message: 'must be a mergable type' }
+    validates :type, presence: true
     validates :source_id, presence: true, unless: -> { source.present? }
     validates :target_id, presence: true, unless: -> { target.present? }
 
@@ -48,7 +48,7 @@ module Effective
     # This is called on Admin::Merges#new
     def validate_klass!
       raise "type can't be blank" unless type.present?
-      raise 'type must be a mergable type' unless EffectiveMergery.mergables.include?(type)
+      raise 'type must be a mergable type' unless EffectiveMergery.mergables.map(&:name).include?(type)
       raise "invalid ActiveRecord klass" unless klass
       raise "invalid ActiveRecord collection" unless collection.kind_of?(ActiveRecord::Relation)
       true
@@ -58,37 +58,26 @@ module Effective
 
     def merge!(validate: true)
       resource = Effective::Resource.new(source)
+      success = false
 
       klass.transaction do
-        begin
+        # Merge associations
+        (resource.has_ones + resource.has_manys + resource.nested_resources).compact.each do |association|
+          next if association.options[:through].present?
 
-          # Merge associations
-          (resource.has_ones + resource.has_manys + resource.nested_resources).compact.each do |association|
-            next if association.options[:through].present?
-
-            Array(source.send(association.name)).each do |obj|
-              obj.assign_attributes(association.foreign_key => target.id)
-
-              unless obj.save(validate: validate)
-                raise "associated #{obj.class.name}<#{obj.to_param}> is invalid: #{obj.errors.full_messages.to_sentence}"
-              end
-            end
+          Array(source.send(association.name)).each do |obj|
+            obj.assign_attributes(association.foreign_key => target.id)
+            obj.save!(validate: validate)
           end
-
-          source.destroy!
-
-          unless target.save(validate: validate)
-            raise "merged #{target.class.name} is invalid: #{target.errors.full_messages.to_sentence}"
-          end
-
-          return true
-        rescue => e
-          self.errors.add(:base, e.message)
-          raise ActiveRecord::Rollback
         end
+
+        source.destroy!
+
+        target.save!(validate: validate)
+        success = true
       end
 
-      false
+      success
     end
 
   end
