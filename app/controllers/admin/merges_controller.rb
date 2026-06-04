@@ -5,6 +5,8 @@ module Admin
 
     include Effective::CrudController
 
+    page_title "Merge Users"
+
     def merge_params
       params.require(:effective_merge).permit!
     end

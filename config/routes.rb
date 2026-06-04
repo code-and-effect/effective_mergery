@@ -4,6 +4,6 @@ end
 
 EffectiveMergery::Engine.routes.draw do
   namespace :admin do
-    resources :merges, only: [:new, :create]
+    resources :merges, only: [:index, :new, :create]
   end
 end

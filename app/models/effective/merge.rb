@@ -17,8 +17,17 @@ module Effective
       errors.add(:target_id, "can't be the same record") if target.id == source.id
     end
 
+    # Both records must be fully valid before we start moving anything
+    validate(if: -> { source.present? }) do
+      errors.add(:source_id, "is invalid: #{source.errors.full_messages.to_sentence}") unless source.valid?
+    end
+
+    validate(if: -> { target.present? }) do
+      errors.add(:target_id, "is invalid: #{target.errors.full_messages.to_sentence}") unless target.valid?
+    end
+
     def to_s
-      'New Merge'
+      (source.present? && target.present?) ? "Merge of #{source} to #{target}" : "New Merge"
     end
 
     def source

@@ -1,3 +1,7 @@
-= tableize_hash(resource.attributes, table: 'table table-merge table-attributes')
-%hr
-= tableize_hash(Effective::Resource.new(resource).instance_attributes.except(:attributes), table: 'table table-merge', sub_table: 'table table-merge table-subtable')
+- name = resource.class.name
+
+- if name.end_with?('::User')
+  = render('admin/merges/user', user: resource)
+- else
+  = tableize_hash(resource.attributes, table: 'table table-sm table-merge table-attributes')
+  = tableize_hash(Effective::Resource.new(resource).instance_attributes.except(:attributes), table: 'table table-sm table-merge', sub_table: 'table table-sm table-merge table-subtable')
