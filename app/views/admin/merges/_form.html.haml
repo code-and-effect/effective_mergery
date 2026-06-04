@@ -26,12 +26,12 @@
         - if source.present?
           = card(source.to_s) do
             = collapse("Show details", card_class: 'mt-2') do
-              = render('admin/merges/resource', resource: source)
+              = render('admin/merges/user', user: source)
       .col-6
         - if target.present?
           = card(target.to_s) do
             = collapse("Show details", card_class: 'mt-2') do
-              = render('admin/merges/resource', resource: target)
+              = render('admin/merges/user', user: target)
 
     - if source.present? && target.present?
       = f.submit "Merge", center: true, 'data-confirm': "Are you sure you want to merge these records and destroy #{source}?"
