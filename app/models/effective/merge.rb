@@ -57,9 +57,9 @@ module Effective
 
       EffectiveResources.transaction do
         # Merge associations
-        (resource.has_ones + resource.has_manys + resource.nested_resources).compact.each do |association|
-          next if association.options[:through].present?
+        associations = (resource.has_ones + resource.has_manys + resource.nested_resources).compact.uniq
 
+        associations.each do |association|
           Array(source.send(association.name)).each do |obj|
             obj.assign_attributes(association.foreign_key => target.id)
             obj.save!(validate: validate)
