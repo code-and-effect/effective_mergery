@@ -2,65 +2,60 @@ module Effective
   class Merge
     include ActiveModel::Model
 
-    attr_accessor :type, :source, :source_id, :target, :target_id
+    attr_accessor :current_user
+    attr_accessor :source_type, :source_id
+    attr_accessor :target_type, :target_id
 
-    validate(if: -> { source_id.present? }) { @source ||= collection.find_by_id(source_id) }
-    validate(if: -> { target_id.present? }) { @target ||= collection.find_by_id(target_id) }
+    validates :target_id, presence: true
+    validates :target_type, presence: true
 
-    validates :type, presence: true
-    validates :source_id, presence: true, unless: -> { source.present? }
-    validates :target_id, presence: true, unless: -> { target.present? }
+    validates :source_id, presence: true
+    validates :source_type, presence: true
 
-    validate(if: -> { source_id.present? && target_id.present? }) do
-      self.errors.add(:target_id, "can't be the same as source") if source_id == target_id
+    validate(if: -> { source.present? && target.present? }) do
+      errors.add(:base, "must be the same type") unless target.class == source.class
+      errors.add(:target_id, "can't be the same record") if target.id == source.id
     end
-
-    validates :source, presence: { message: 'invalid source id' }, if: -> { source_id.present? }
-    validates :target, presence: { message: 'invalid target id' }, if: -> { target_id.present? }
 
     def to_s
-      return 'New Merge' unless type
-      type.downcase
+      'New Merge'
     end
 
-    def save(validate: true)
-      return false unless valid?
-      (merge!(validate: validate) rescue false)
+    def source
+      @source ||= source_type.try(:safe_constantize).try(:find_by_id, source_id)
     end
 
-    def save!(validate: true)
-      raise 'is invalid' unless valid?
-      merge!(validate: validate)
+    def source=(resource)
+      raise('expected an ActiveRecord::Base resource') unless resource.is_a?(ActiveRecord::Base)
+      assign_attributes(source_type: resource.class.name, source_id: resource.id)
+      @source = resource
     end
 
-    def collection
-      @collection ||= (klass.respond_to?(:effective_mergery_collection) ? klass.effective_mergery_collection : klass.all)
+    def target
+      @target ||= target_type.try(:safe_constantize).try(:find_by_id, target_id)
     end
 
-    def form_collection
-      @form_collection ||= (klass.respond_to?(:effective_mergery_form_collection) ? klass.effective_mergery_form_collection : collection)
+    def target=(resource)
+      raise('expected an ActiveRecord::Base resource') unless resource.is_a?(ActiveRecord::Base)
+      assign_attributes(target_type: resource.class.name, target_id: resource.id)
+      @target = resource
     end
 
-    def klass
-      @klass ||= type.safe_constantize
-    end
-
-    # This is called on Admin::Merges#new
-    def validate_klass!
-      raise "type can't be blank" unless type.present?
-      raise 'type must be a mergable type' unless EffectiveMergery.mergables.map(&:name).include?(type)
-      raise "invalid ActiveRecord klass" unless klass
-      raise "invalid ActiveRecord collection" unless collection.kind_of?(ActiveRecord::Relation)
+    def new_record?
       true
     end
 
-    private
+    def save!
+      merge!
+    end
 
     def merge!(validate: true)
+      raise ActiveRecord::RecordInvalid.new(self) unless valid?
+
       resource = Effective::Resource.new(source)
       success = false
 
-      klass.transaction do
+      EffectiveResources.transaction do
         # Merge associations
         (resource.has_ones + resource.has_manys + resource.nested_resources).compact.each do |association|
           next if association.options[:through].present?
@@ -72,13 +67,32 @@ module Effective
         end
 
         source.destroy!
-
         target.save!(validate: validate)
+
+        log_merged!
+
         success = true
       end
 
       success
     end
 
+    private
+
+    def log_merged!
+      return unless defined?(EffectiveLogger)
+
+      EffectiveLogger.success(
+        "Merged #{source} into #{target}",
+        user: current_user,
+        associated: target,
+        source_id: source_id,
+        source_type: source_type,
+        target_id: target_id,
+        target_type: target_type,
+        source_email: source.try(:email),
+        source_name: source.to_s
+      )
+    end
   end
 end

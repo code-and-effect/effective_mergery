@@ -1,6 +1,6 @@
 # Effective Mergery
 
-Merge any two Active Record objects, along with all associated objects, into one record.
+Merge any two Active Record Users, along with all associated objects, into one record.
 
 ## Getting Started
 
@@ -38,11 +38,10 @@ Require the stylesheet on the asset pipeline by adding the following to your app
 
 ## Usage
 
-Visit `/admin/merge` and select an object type to merge.
+Visit `/admin/merge/new` and select an object type to merge.
 
 ```ruby
-link_to 'Merge', effective_mergery.admin_merge_index_path
-link_to 'Merge: User', effective_mergery.new_admin_merge_path(type: 'User')
+link_to 'Merge', effective_mergery.new_admin_merge_path
 ```
 
 ## Permissions
@@ -51,6 +50,7 @@ Add the following permissions (using CanCan):
 
 ```ruby
 can :admin, :effective_mergery
+can :manage, Effective::Merge
 ```
 
 ## License
@@ -65,4 +65,3 @@ MIT License. Copyright [Code and Effect Inc.](http://www.codeandeffect.com/)
 4. Push to the branch (`git push origin my-new-feature`)
 5. Bonus points for test coverage
 6. Create new Pull Request
-

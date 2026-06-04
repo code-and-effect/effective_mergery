@@ -1,0 +1,37 @@
+= effective_form_with(model: [:admin, merge], engine: true) do |f|
+  -# User
+  - klass = (current_user.class)
+  - ajax_url = (effective_resources.users_effective_ajax_index_path unless Rails.env.test?)
+
+  .row
+    .col
+      = f.hidden_field :source_type, value: klass.name
+      = f.select :source_id, klass.all, ajax_url: ajax_url, hint: 'This record will be destroyed',
+        'data-load-ajax-url': effective_mergery.new_admin_merge_path,
+        'data-load-ajax-div': '#effective-mergery-ajax',
+        'data-load-ajax-all': true
+    .col
+      = f.hidden_field :target_type, value: klass.name
+      = f.select :target_id, klass.all, ajax_url: ajax_url, hint: 'This record will be kept',
+        'data-load-ajax-url': effective_mergery.new_admin_merge_path,
+        'data-load-ajax-div': '#effective-mergery-ajax',
+        'data-load-ajax-all': true
+
+  #effective-mergery-ajax
+    - source = f.object.source
+    - target = f.object.target
+
+    .row
+      .col-6
+        - if source.present?
+          = card(source.to_s) do
+            = collapse("Show details", card_class: 'mt-2') do
+              = render('admin/merges/resource', resource: source)
+      .col-6
+        - if target.present?
+          = card(target.to_s) do
+            = collapse("Show details", card_class: 'mt-2') do
+              = render('admin/merges/resource', resource: target)
+
+    - if source.present? && target.present?
+      = f.submit "Merge", center: true
