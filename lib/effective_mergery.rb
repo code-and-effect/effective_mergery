@@ -5,7 +5,7 @@ require 'effective_mergery/version'
 module EffectiveMergery
 
   def self.config_keys
-    [:layout, :admin_simple_form_options, :class_names]
+    [:layout]
   end
 
   include EffectiveGem

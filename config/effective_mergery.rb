@@ -1,24 +1,12 @@
 EffectiveMergery.setup do |config|
-
- # Admin Screens Layout Settings
-  config.layout = 'application'   # All EffectiveMergery controllers will use this layout
-
   # config.layout = {
   #   merge: 'application',
   #   admin_merge: 'admin',
   # }
 
-  config.admin_simple_form_options = {}  # For the /admin/merge/new form
-  # config.admin_simple_form_options = {
-  #   :html => {:class => ['form-horizontal']},
-  #   :wrapper => :horizontal_form,
-  #   :wrapper_mappings => {
-  #     :boolean => :horizontal_boolean,
-  #     :check_boxes => :horizontal_radio_and_checkboxes,
-  #     :radio_buttons => :horizontal_radio_and_checkboxes
-  #   }
-  # }
-
-  # The class names that can be merged
-  # config.class_names = ['User']
+  # Per-model hooks (define these class methods on a mergeable model):
+  #
+  #   def self.effective_mergery_collection           # records available to merge
+  #   def self.effective_mergery_form_collection      # dropdown options (defaults to the collection)
+  #   def self.effective_mergery_excluded_associations # associations kept on the source, e.g. [:addresses]
 end

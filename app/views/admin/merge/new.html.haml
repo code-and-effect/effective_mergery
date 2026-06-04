@@ -3,18 +3,14 @@
 %p Please select a source and target. The source record's associated data, but not its attributes, will be merged into the target. The source record will then be destroyed.
 
 .effective-merge
-  = simple_form_for([:admin, @merge], url: effective_mergery.admin_merge_index_path) do |f|
-    = f.input :type, as: :hidden
+  = effective_form_with(model: @merge, url: effective_mergery.admin_merge_index_path) do |f|
+    = f.hidden_field :type
 
     .row
       .col-sm-6
-        = f.input :source_id, as: (defined?(EffectiveFormInputs) ? :effective_select : :select),
-          collection: f.object.form_collection,
-          hint: 'This record will be destroyed'
+        = f.select :source_id, f.object.form_collection, label: 'Source', hint: 'This record will be destroyed'
       .col-sm-6
-        = f.input :target_id, as: (defined?(EffectiveFormInputs) ? :effective_select : :select),
-          collection: f.object.form_collection,
-          hint: 'This record will be kept'
+        = f.select :target_id, f.object.form_collection, label: 'Target', hint: 'This record will be kept'
 
     .row
       .col-sm-6.source
@@ -25,5 +21,4 @@
         - if f.object.target.present?
           = render partial: '/admin/merge/attributes', locals: { resource: f.object.target }
 
-    .form-actions
-      = f.button :submit, "Merge #{@merge}", data: { disable_with: 'Merging...', confirm: "Really merge? The source record will be destroyed."}
+    = f.submit "Merge #{@merge}", center: true, 'data-confirm': 'Really merge? The source record will be destroyed.'
