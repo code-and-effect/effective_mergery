@@ -1,0 +1,3 @@
+= effective_table_with(user) do |f|
+  = render_if_exists('users/fields_account', f: f)
+  = render_if_exists('users/fields_demographics', f: f)

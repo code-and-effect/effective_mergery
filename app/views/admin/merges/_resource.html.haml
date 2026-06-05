@@ -1,0 +1,6 @@
+- if resource.class.name.ends_with?("::User")
+  = render('admin/merges/user', user: resource)
+- else
+  - raise("Unsupported mergable class: #{resource.class.name}")
+
+= render('admin/merges/associations', resource: resource)
