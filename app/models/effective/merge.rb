@@ -61,21 +61,65 @@ module Effective
     def merge!(validate: true)
       raise ActiveRecord::RecordInvalid.new(self) unless valid?
 
-      resource = Effective::Resource.new(source)
+      Rails.application.eager_load! unless Rails.application.config.eager_load
+
       success = false
 
-      EffectiveResources.transaction do
-        # Merge associations
-        associations = (resource.has_ones + resource.has_manys + resource.nested_resources).compact.uniq
+      # Every model whose table lives in the source's world: Effective:: always, plus the source's own tenant
+      # namespace when running under Tenant (otherwise every model).
+      prefix = source.class.name.deconstantize
 
-        associations.each do |association|
-          Array(source.send(association.name)).each do |obj|
-            obj.assign_attributes(association.foreign_key => target.id)
-            obj.save!(validate: validate)
+      klasses = ActiveRecord::Base.descendants.reject(&:abstract_class?).select do |klass|
+        name = klass.name.to_s
+        name.start_with?('Effective::') || (defined?(Tenant) ? name.start_with?("#{prefix}::") : true)
+      end
+
+      EffectiveResources.transaction do
+        # Re-point every record that belongs to the source onto the target, treating the target as the
+        # authoritative account. We walk from the belongs_to side so we catch foreign keys no has_many/has_one
+        # is declared for - polymorphic owners (Effective::Address, Effective::EventRegistration) and named
+        # self-refs alike (advisor_id, endorser_id, reviewer_id) - and move them with update_all. No per-record
+        # validations or callbacks run, so historical data and business rules can't block the merge. Any source
+        # record that would duplicate one the target already owns (per a uniqueness validator OR a unique index)
+        # is deleted instead of moved, so the merge never creates a duplicate or trips a unique constraint.
+        klasses.each do |klass|
+          # belongs_to that could reference the source: polymorphic, or one whose target IS the source's class.
+          reflections = klass.reflect_on_all_associations(:belongs_to).select do |reflection|
+            reflection.polymorphic? || (reflection.klass == source.class rescue false)
+          end
+
+          reflections.each do |reflection|
+            foreign_key = reflection.foreign_key.to_s
+            foreign_type = (reflection.foreign_type.to_s if reflection.polymorphic?)
+
+            source_records = klass.where(foreign_key => source.id)
+            source_records = source_records.where(foreign_type => source.class.name) if foreign_type
+            next unless source_records.exists?
+
+            attributes = { foreign_key => target.id }
+            attributes[foreign_type] = target.class.name if foreign_type
+
+            # Addresses are kept as a whole set, not merged record by record: if the target already has any
+            # addresses, keep the target's and drop the source's; only copy the source's over when the target
+            # has none.
+            if klass.name == 'Effective::Address'
+              target_records = klass.where(foreign_key => target.id)
+              target_records = target_records.where(foreign_type => target.class.name) if foreign_type
+
+              target_records.exists? ? source_records.delete_all : source_records.update_all(attributes)
+              next
+            end
+
+            duplicate_ids = duplicate_record_ids(klass, foreign_key, foreign_type)
+            source_records.where(id: duplicate_ids).delete_all if duplicate_ids.present?
+            source_records.where.not(id: duplicate_ids).update_all(attributes)
           end
         end
 
-        source.destroy!
+        # Everything the source owned now points at the target; whatever is left dies with the source.
+        # Reload first so dependent: callbacks only fire for what STILL points at the source (update_all
+        # bypasses the in-memory association cache).
+        source.reload.destroy!
         target.save!(validate: validate)
 
         log_merged!
@@ -87,6 +131,57 @@ module Effective
     end
 
     private
+
+    # Ids of the source's `klass` records the (authoritative) target already has an equivalent of - judged by
+    # klass's uniqueness validators AND unique indexes that involve the foreign key we're repointing. These get
+    # deleted instead of moved, so the merge can neither create a duplicate nor trip a unique index.
+    def duplicate_record_ids(klass, foreign_key, foreign_type)
+      identifying_columns = dedupe_key_columns(klass, foreign_key, foreign_type)
+      return [] if identifying_columns.blank?
+
+      source_records = klass.where(foreign_key => source.id)
+      source_records = source_records.where(foreign_type => source.class.name) if foreign_type
+
+      target_records = klass.where(foreign_key => target.id)
+      target_records = target_records.where(foreign_type => target.class.name) if foreign_type
+
+      identifying_columns.flat_map do |columns|
+        if columns.empty?
+          # One-per-owner (e.g. a membership, unique on the owner alone): if the target already owns one,
+          # every source record is a duplicate and is dropped rather than moved into the unique constraint.
+          target_records.exists? ? source_records.pluck(:id) : []
+        else
+          existing = target_records.pluck(*columns).map { |row| Array(row) }.to_set
+          source_records.pluck(:id, *columns).filter_map { |id, *values| id if existing.include?(values) }
+        end
+      end.uniq
+    end
+
+    # The column sets that - together with the foreign key - make a record unique for its owner, drawn from
+    # both uniqueness validators and unique indexes. The foreign key (and its *_type) is dropped from each set
+    # since every moved record shares the target's value for those; an empty set means the record is unique on
+    # the owner alone (one-per-owner). Partial indexes are skipped - their WHERE can't be judged from columns.
+    def dedupe_key_columns(klass, foreign_key, foreign_type)
+      removable = [foreign_key, foreign_type].compact
+
+      from_validators = klass.validators.select { |validator| validator.kind == :uniqueness }.filter_map do |validator|
+        columns = (Array(validator.attributes) + Array(validator.options[:scope])).map(&:to_s)
+        (columns - removable) if columns.include?(foreign_key)
+      end
+
+      from_indexes =
+        begin
+          klass.connection.indexes(klass.table_name).filter_map do |index|
+            next unless index.unique && index.where.blank?
+            columns = Array(index.columns).map(&:to_s)
+            (columns - removable) if columns.include?(foreign_key)
+          end
+        rescue StandardError
+          []
+        end
+
+      (from_validators + from_indexes).uniq
+    end
 
     def log_merged!
       return unless defined?(EffectiveLogger)
