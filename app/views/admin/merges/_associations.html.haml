@@ -1,0 +1,23 @@
+- effective_resource = Effective::Resource.new(resource)
+- associations = (effective_resource.has_ones + effective_resource.has_manys).reject { |association| association.options[:through].present? }
+- limit = 10
+
+%table.table.table-sm.table-striped.mt-4
+  %tbody
+    - associations.each do |association|
+      - collection = resource.send(association.name)
+      - records = (collection.respond_to?(:limit) ? collection.limit(limit).to_a : Array(collection))
+      - next if records.blank?
+
+      - total = (collection.respond_to?(:count) ? collection.count : records.size)
+      - admin_resource = (Effective::Resource.new(association.klass, namespace: :admin) rescue nil)
+
+      %tr
+        %th.text-nowrap= association.name.to_s.humanize
+        %td
+          - records.each do |record|
+            - path = (admin_resource&.action_path(:edit, record) || admin_resource&.action_path(:show, record))
+            %div= path.present? ? link_to(record.to_s, path) : record.to_s
+
+          - if total > records.size
+            %small.text-muted= "and #{total - records.size} more…"
