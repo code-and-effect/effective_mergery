@@ -63,16 +63,10 @@ module Effective
 
       Rails.application.eager_load! unless Rails.application.config.eager_load
 
+      klasses = defined?(Tenant) ? Tenant.klasses : ActiveRecord::Base.descendants.reject(&:abstract_class?)
+      klasses = klasses.select { |klass| klass.table_exists? }
+
       success = false
-
-      # Every model whose table lives in the source's world: Effective:: always, plus the source's own tenant
-      # namespace when running under Tenant (otherwise every model).
-      prefix = source.class.name.deconstantize
-
-      klasses = ActiveRecord::Base.descendants.reject(&:abstract_class?).select do |klass|
-        name = klass.name.to_s
-        name.start_with?('Effective::') || (defined?(Tenant) ? name.start_with?("#{prefix}::") : true)
-      end
 
       EffectiveResources.transaction do
         # Re-point every record that belongs to the source onto the target, treating the target as the
@@ -83,17 +77,8 @@ module Effective
         # record that would duplicate one the target already owns (per a uniqueness validator OR a unique index)
         # is deleted instead of moved, so the merge never creates a duplicate or trips a unique constraint.
         klasses.each do |klass|
-          # belongs_to that could reference the source: polymorphic, or one whose target IS the source's class.
-          reflections = klass.reflect_on_all_associations(:belongs_to).select do |reflection|
-            reflection.polymorphic? || (reflection.klass == source.class rescue false)
-          end
-
-          reflections.each do |reflection|
-            foreign_key = reflection.foreign_key.to_s
-            foreign_type = (reflection.foreign_type.to_s if reflection.polymorphic?)
-
-            source_records = klass.where(foreign_key => source.id)
-            source_records = source_records.where(foreign_type => source.class.name) if foreign_type
+          source_foreign_keys(klass).each do |foreign_key, foreign_type|
+            source_records = records_for(klass, foreign_key, foreign_type, source)
             next unless source_records.exists?
 
             attributes = { foreign_key => target.id }
@@ -103,10 +88,7 @@ module Effective
             # addresses, keep the target's and drop the source's; only copy the source's over when the target
             # has none.
             if klass.name == 'Effective::Address'
-              target_records = klass.where(foreign_key => target.id)
-              target_records = target_records.where(foreign_type => target.class.name) if foreign_type
-
-              target_records.exists? ? source_records.delete_all : source_records.update_all(attributes)
+              records_for(klass, foreign_key, foreign_type, target).exists? ? source_records.delete_all : source_records.update_all(attributes)
               next
             end
 
@@ -115,6 +97,9 @@ module Effective
             source_records.where.not(id: duplicate_ids).update_all(attributes)
           end
         end
+
+        # Prove the merge is complete before we destroy the source: nothing may still reference it.
+        assert_no_references_to_source!(klasses)
 
         # Everything the source owned now points at the target; whatever is left dies with the source.
         # Reload first so dependent: callbacks only fire for what STILL points at the source (update_all
@@ -132,6 +117,40 @@ module Effective
 
     private
 
+    # [[foreign_key, foreign_type], ...] for every belongs_to on klass that could point at the source:
+    # polymorphic, or one whose target IS the source's class (belongs_to :user, self-refs like advisor_id).
+    # foreign_type is nil for non-polymorphic associations; associations missing their column are skipped.
+    def source_foreign_keys(klass)
+      klass.reflect_on_all_associations(:belongs_to).filter_map do |reflection|
+        next unless reflection.polymorphic? || (reflection.klass == source.class rescue false)
+
+        foreign_key = reflection.foreign_key.to_s
+        next unless klass.column_names.include?(foreign_key)
+
+        [foreign_key, (reflection.foreign_type.to_s if reflection.polymorphic?)]
+      end
+    end
+
+    # The klass records owned by `owner` through foreign_key (scoped by *_type for polymorphics).
+    def records_for(klass, foreign_key, foreign_type, owner)
+      scope = klass.where(foreign_key => owner.id)
+      foreign_type ? scope.where(foreign_type => owner.class.name) : scope
+    end
+
+    # Safety net run before we destroy the source: after the move, none of the models we moved may still point
+    # at the source - otherwise destroying it would orphan or cascade-delete that record. Re-checks the same
+    # klasses the move walked, so a bug there (an STI type mismatch, a row written mid-merge) fails the merge
+    # loudly and rolls it back instead of losing data.
+    def assert_no_references_to_source!(klasses)
+      klasses.uniq(&:table_name).each do |klass|
+        source_foreign_keys(klass).each do |foreign_key, foreign_type|
+          next unless records_for(klass, foreign_key, foreign_type, source).exists?
+
+          raise "Effective::Merge incomplete: #{klass.table_name}.#{foreign_key} still references #{source_type} ##{source_id}"
+        end
+      end
+    end
+
     # Ids of the source's `klass` records the (authoritative) target already has an equivalent of - judged by
     # klass's uniqueness validators AND unique indexes that involve the foreign key we're repointing. These get
     # deleted instead of moved, so the merge can neither create a duplicate nor trip a unique index.
@@ -139,11 +158,8 @@ module Effective
       identifying_columns = dedupe_key_columns(klass, foreign_key, foreign_type)
       return [] if identifying_columns.blank?
 
-      source_records = klass.where(foreign_key => source.id)
-      source_records = source_records.where(foreign_type => source.class.name) if foreign_type
-
-      target_records = klass.where(foreign_key => target.id)
-      target_records = target_records.where(foreign_type => target.class.name) if foreign_type
+      source_records = records_for(klass, foreign_key, foreign_type, source)
+      target_records = records_for(klass, foreign_key, foreign_type, target)
 
       identifying_columns.flat_map do |columns|
         if columns.empty?
