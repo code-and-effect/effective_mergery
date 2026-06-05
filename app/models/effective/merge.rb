@@ -146,7 +146,7 @@ module Effective
         source_foreign_keys(klass).each do |foreign_key, foreign_type|
           next unless records_for(klass, foreign_key, foreign_type, source).exists?
 
-          raise "Effective::Merge incomplete: #{klass.table_name}.#{foreign_key} still references #{source_type} ##{source_id}"
+          raise "Merge incomplete: #{klass.table_name}.#{foreign_key} still references #{source_type} ##{source_id}"
         end
       end
     end
@@ -207,9 +207,7 @@ module Effective
         user: current_user,
         associated: target,
         source_id: source_id,
-        source_type: source_type,
         target_id: target_id,
-        target_type: target_type,
         source_email: source.try(:email),
         source_name: source.to_s
       )
