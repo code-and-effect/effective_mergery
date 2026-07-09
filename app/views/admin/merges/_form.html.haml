@@ -4,13 +4,13 @@
   - ajax_url = (effective_resources.users_effective_ajax_index_path unless Rails.env.test?)
 
   .row
-    .col
+    .col-6
       = f.hidden_field :source_type, value: klass.name
       = f.select :source_id, klass.all, ajax_url: ajax_url, hint: 'This record will be destroyed',
         'data-load-ajax-url': effective_mergery.new_admin_merge_path,
         'data-load-ajax-div': '#effective-mergery-ajax',
         'data-load-ajax-all': true
-    .col
+    .col-6
       = f.hidden_field :target_type, value: klass.name
       = f.select :target_id, klass.all, ajax_url: ajax_url, hint: 'This record will be kept',
         'data-load-ajax-url': effective_mergery.new_admin_merge_path,

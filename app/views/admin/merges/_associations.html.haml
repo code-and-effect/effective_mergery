@@ -1,5 +1,5 @@
 - effective_resource = Effective::Resource.new(resource)
-- associations = (effective_resource.has_ones + effective_resource.has_manys).reject { |association| association.options[:through].present? }
+- associations = (effective_resource.has_ones + effective_resource.has_manys + effective_resource.nested_resources).reject { |association| association.options[:through].present? }
 - limit = 10
 
 %table.table.table-sm.table-striped.mt-4
@@ -17,7 +17,12 @@
         %td
           - records.each do |record|
             - path = (admin_resource&.action_path(:edit, record) || admin_resource&.action_path(:show, record))
-            %div= path.present? ? link_to(record.to_s, path) : record.to_s
+            %div
+              = path.present? ? link_to(record.to_s, path) : record.to_s
+              - if record.class.try(:acts_as_statused?)
+                = badge(record.status)
+              - if record.class.try(:acts_as_role_restricted?)
+                = roles_badges(record)
 
           - if total > records.size
             %small.text-muted= "and #{total - records.size} more…"
